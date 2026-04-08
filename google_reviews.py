@@ -12,8 +12,9 @@ import slack_notify
 logger = logging.getLogger(__name__)
 
 TOKEN_URI = "https://oauth2.googleapis.com/token"
-GBP_BASE = "https://mybusiness.googleapis.com/v4"
-GBP_V1_BASE = "https://mybusinessbusinessinformation.googleapis.com/v1"
+GBP_ACCOUNTS_BASE = "https://mybusinessaccountmanagement.googleapis.com/v1"
+GBP_LOCATIONS_BASE = "https://mybusinessbusinessinformation.googleapis.com/v1"
+GBP_REVIEWS_BASE = "https://mybusiness.googleapis.com/v4"
 
 _credentials = None
 
@@ -55,7 +56,7 @@ def _handle_auth_error(resp: requests.Response) -> bool:
 
 def discover_account_id() -> str | None:
     """Discover the GBP account ID."""
-    url = f"{GBP_BASE}/accounts"
+    url = f"{GBP_ACCOUNTS_BASE}/accounts"
     resp = requests.get(url, headers=_auth_headers(), timeout=30)
 
     if resp.status_code == 401:
@@ -79,7 +80,7 @@ def discover_account_id() -> str | None:
 
 def discover_locations(account_name: str) -> list[dict]:
     """Discover all locations for the account."""
-    url = f"{GBP_V1_BASE}/{account_name}/locations"
+    url = f"{GBP_LOCATIONS_BASE}/{account_name}/locations"
     params = {"readMask": "name,title,storefrontAddress"}
     resp = requests.get(url, headers=_auth_headers(), params=params, timeout=30)
 
@@ -105,7 +106,7 @@ def fetch_reviews(account_name: str, location_name: str) -> list[dict]:
     """Fetch recent reviews for a location, ordered by update time."""
     # location_name is like "locations/12345", we need "accounts/X/locations/Y"
     full_name = f"{account_name}/{location_name}"
-    url = f"{GBP_BASE}/{full_name}/reviews"
+    url = f"{GBP_REVIEWS_BASE}/{full_name}/reviews"
     params = {"orderBy": "updateTime desc", "pageSize": 50}
 
     resp = requests.get(url, headers=_auth_headers(), params=params, timeout=30)
