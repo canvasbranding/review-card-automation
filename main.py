@@ -9,8 +9,8 @@ from apscheduler.triggers.cron import CronTrigger
 
 import config
 import google_reviews
-import hubspot_lookup
 import handwrytten_send
+import hubspot_lookup
 import supabase_db
 import slack_notify
 
@@ -186,13 +186,6 @@ def main():
     if missing:
         logger.error("Missing required environment variables: %s", ", ".join(missing))
         sys.exit(1)
-
-    # Discover Handwrytten template at startup
-    card_id = handwrytten_send.discover_template_id()
-    if card_id is None:
-        logger.error("Could not find Handwrytten template. Exiting.")
-        sys.exit(1)
-    logger.info("Using Handwrytten card ID: %s", card_id)
 
     if config.DRY_RUN:
         logger.info("*** DRY RUN MODE — cards will NOT be sent ***")

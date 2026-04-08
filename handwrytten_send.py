@@ -5,75 +5,13 @@ import logging
 import requests
 
 import config
-import slack_notify
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.handwrytten.com/v1"
 
-_card_id = None
-
-
-def _headers() -> dict:
-    return {
-        "Authorization": f"Bearer {config.HANDWRYTTEN_API_KEY}",
-        "Content-Type": "application/json",
-    }
-
-
-def _auth_params() -> dict:
-    """Some Handwrytten endpoints use query param auth."""
-    return {"login": config.HANDWRYTTEN_API_KEY}
-
-
-def discover_template_id() -> int | None:
-    """Find the card/template ID matching HANDWRYTTEN_TEMPLATE_NAME.
-
-    Must be called at startup. Returns the card ID or None.
-    """
-    global _card_id
-
-    url = f"{BASE_URL}/cards/list"
-    try:
-        resp = requests.get(url, params=_auth_params(), timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception:
-        logger.exception("Failed to list Handwrytten cards")
-        slack_notify.notify_error(
-            "Failed to list Handwrytten card templates \u2014 check API key"
-        )
-        return None
-
-    # The response structure may vary; handle both list and nested formats
-    cards = data if isinstance(data, list) else data.get("cards", data.get("results", []))
-
-    target = config.HANDWRYTTEN_TEMPLATE_NAME.lower()
-    for card in cards:
-        name = (card.get("name") or card.get("title") or "").lower()
-        if target in name:
-            _card_id = card.get("id") or card.get("card_id")
-            logger.info(
-                "Found Handwrytten template '%s' with ID %s",
-                card.get("name") or card.get("title"),
-                _card_id,
-            )
-            return _card_id
-
-    logger.error(
-        "Handwrytten template '%s' not found. Available: %s",
-        config.HANDWRYTTEN_TEMPLATE_NAME,
-        [c.get("name") or c.get("title") for c in cards[:20]],
-    )
-    slack_notify.notify_error(
-        f"Handwrytten template '{config.HANDWRYTTEN_TEMPLATE_NAME}' not found.\n"
-        f"Available templates: {[c.get('name') or c.get('title') for c in cards[:10]]}"
-    )
-    return None
-
-
-def get_card_id() -> int | None:
-    return _card_id
+# Dark Border Thank You card
+CARD_ID = 2661
 
 
 def send_card(
@@ -88,9 +26,6 @@ def send_card(
 
     Returns dict with 'order_id' on success, or raises on failure.
     """
-    if _card_id is None:
-        raise RuntimeError("Card template not discovered yet. Call discover_template_id() first.")
-
     if config.DRY_RUN:
         logger.info(
             "[DRY RUN] Would send card to %s at %s, %s, %s %s",
@@ -114,7 +49,7 @@ def send_card(
 
     payload = {
         "login": config.HANDWRYTTEN_API_KEY,
-        "card_id": _card_id,
+        "card_id": CARD_ID,
         "message": message or config.CARD_MESSAGE,
         "recipient_name": recipient_name,
         "recipient_first_name": first_name,
