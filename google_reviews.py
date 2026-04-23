@@ -54,8 +54,8 @@ def _handle_auth_error(resp: requests.Response) -> bool:
     return False
 
 
-def discover_account_id() -> str | None:
-    """Discover the GBP account ID."""
+def discover_accounts() -> list[str]:
+    """Discover all GBP account names the user has access to."""
     url = f"{GBP_ACCOUNTS_BASE}/accounts"
     resp = requests.get(url, headers=_auth_headers(), timeout=30)
 
@@ -66,16 +66,19 @@ def discover_account_id() -> str | None:
     if not resp.ok:
         _handle_auth_error(resp)
         logger.error("Failed to list accounts: %s %s", resp.status_code, resp.text)
-        return None
+        return []
 
     accounts = resp.json().get("accounts", [])
     if not accounts:
         logger.error("No GBP accounts found")
-        return None
+        return []
 
-    account_name = accounts[0]["name"]  # e.g. "accounts/12345"
-    logger.info("Discovered GBP account: %s", account_name)
-    return account_name
+    logger.info("Discovered %d GBP account(s)", len(accounts))
+    for acc in accounts:
+        logger.info(
+            "  - %s (%s)", acc.get("accountName", "?"), acc["name"]
+        )
+    return [acc["name"] for acc in accounts]
 
 
 def discover_locations(account_name: str) -> list[dict]:
@@ -96,7 +99,7 @@ def discover_locations(account_name: str) -> list[dict]:
         return []
 
     locations = resp.json().get("locations", [])
-    logger.info("Discovered %d locations", len(locations))
+    logger.info("Discovered %d location(s) under %s", len(locations), account_name)
     for loc in locations:
         logger.info("  - %s (%s)", loc.get("title", "?"), loc["name"])
     return locations
@@ -155,27 +158,32 @@ def parse_review(review: dict, location_title: str) -> dict | None:
 
 def poll_five_star_reviews() -> list[dict]:
     """Main entry point: discover locations and return new 5-star reviews."""
-    account_name = discover_account_id()
-    if not account_name:
-        return []
-
-    locations = discover_locations(account_name)
-    if not locations:
+    accounts = discover_accounts()
+    if not accounts:
         return []
 
     five_star = []
-    for loc in locations:
-        location_name = loc["name"]
-        location_title = loc.get("title", location_name)
-        reviews = fetch_reviews(account_name, location_name)
-        logger.info(
-            "Fetched %d reviews from %s", len(reviews), location_title
-        )
+    for account_name in accounts:
+        locations = discover_locations(account_name)
+        if not locations:
+            continue
 
-        for review in reviews:
-            parsed = parse_review(review, location_title)
-            if parsed:
-                five_star.append(parsed)
+        for loc in locations:
+            location_name = loc["name"]
+            location_title = loc.get("title", location_name)
+            reviews = fetch_reviews(account_name, location_name)
+            logger.info(
+                "Fetched %d reviews from %s", len(reviews), location_title
+            )
 
-    logger.info("Found %d total 5-star reviews across all locations", len(five_star))
+            for review in reviews:
+                parsed = parse_review(review, location_title)
+                if parsed:
+                    five_star.append(parsed)
+
+    logger.info(
+        "Found %d total 5-star reviews across %d account(s)",
+        len(five_star),
+        len(accounts),
+    )
     return five_star
